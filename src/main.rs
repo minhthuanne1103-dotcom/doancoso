@@ -52,8 +52,18 @@ fn main() -> Result<(), Box<dyn Error>> {
     // 3. Quét các cổng & Nhận diện phiên bản (Port Scan & Banner Grabbing)
     println!("\n[*] Dang quet cac cong & phien ban tren: {}...", domain_only.blue());
     let ports = vec![21, 22, 23, 80, 443, 3306, 8080];
+    // === THÊM MỚI: TÁCH RIÊNG PORT 80 VÀ 443 ===
+    let mut http_port_80_open = false;
+    let mut http_port_80_server = String::from("Unknown");
+    let mut https_port_443_open = false;
+    let mut https_port_443_server = String::from("Unknown");
 
-    for port in ports {
+        for port in ports {
+        // BỎ QUA PORT 80 VÀ 443 TRONG VÒNG LẶP CHÍNH (sẽ xử lý riêng)
+        if port == 80 || port == 443 {
+            continue;
+        }
+        
         let addr_str = format!("{}:{}", domain_only, port);
         print!("    Checking Port {}... ", port);
         
@@ -106,6 +116,69 @@ fn main() -> Result<(), Box<dyn Error>> {
         }
         row += 1;
     }
+
+    // ===== XỬ LÝ RIÊNG PORT 80 (HTTP) =====
+    println!("\n[*] Dang kiem tra HTTP Port 80...");
+    sheet.write(row, 0, row as f64)?;
+    sheet.write(row, 1, "Port 80 (HTTP)")?;
+    
+    let http_url = format!("http://{}", domain_only);
+    let http_client = reqwest::blocking::Client::builder()
+        .timeout(Duration::from_secs(5))
+        .build()?;
+    
+    match http_client.get(&http_url).send() {
+        Ok(res) => {
+            let server_ver = res.headers()
+                .get("server")
+                .and_then(|v| v.to_str().ok())
+                .unwrap_or("Unknown Server");
+            
+            println!("    Port 80: {} - Server: {}", "OPEN".green().bold(), server_ver.cyan());
+            sheet.write(row, 2, format!("HTTP OK (Server: {})", server_ver))?;
+            sheet.write_with_format(row, 3, "TRUNG BINH", &format_medium)?;
+            http_port_80_open = true;
+            http_port_80_server = server_ver.to_string();
+        }
+        Err(e) => {
+            println!("    Port 80: {}", "Closed or No Response".red());
+            sheet.write(row, 2, format!("Loi: {}", e))?;
+            sheet.write(row, 3, "An toan")?;
+        }
+    }
+    row += 1;
+
+    // ===== XỬ LÝ RIÊNG PORT 443 (HTTPS) =====
+    println!("\n[*] Dang kiem tra HTTPS Port 443...");
+    sheet.write(row, 0, row as f64)?;
+    sheet.write(row, 1, "Port 443 (HTTPS)")?;
+    
+    let https_url = format!("https://{}", domain_only);
+    let https_client = reqwest::blocking::Client::builder()
+        .timeout(Duration::from_secs(5))
+        .danger_accept_invalid_certs(true)  // Chấp nhận cert tự ký
+        .build()?;
+    
+    match https_client.get(&https_url).send() {
+        Ok(res) => {
+            let server_ver = res.headers()
+                .get("server")
+                .and_then(|v| v.to_str().ok())
+                .unwrap_or("Unknown Server");
+            
+            println!("    Port 443: {} - Server: {}", "OPEN".green().bold(), server_ver.cyan());
+            sheet.write(row, 2, format!("HTTPS OK (Server: {})", server_ver))?;
+            sheet.write_with_format(row, 3, "CAO", &format_high)?;
+            https_port_443_open = true;
+            https_port_443_server = server_ver.to_string();
+        }
+        Err(e) => {
+            println!("    Port 443: {}", "Closed or SSL Error".red());
+            sheet.write(row, 2, format!("Loi: {}", e))?;
+            sheet.write(row, 3, "An toan")?;
+        }
+    }
+    row += 1;
 
     // 4. Quét file nhạy cảm & TRÍCH XUẤT HTTP HEADER SERVER
     println!("\n[*] Dang quet file nhay cam tren: {}...", target_url.blue());
