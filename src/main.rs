@@ -1,5 +1,5 @@
 use reqwest;
-use rust_xlsxwriter::*;
+use rust_xlsxwriter::{Workbook, Format, Color as XlsxColor};
 use std::error::Error;
 use std::io::{self, Read, Write}; 
 use std::net::ToSocketAddrs;
@@ -37,10 +37,10 @@ fn main() -> Result<(), Box<dyn Error>> {
     let mut workbook = Workbook::new();
     let sheet = workbook.add_worksheet();
     
-    let format_critical = Format::new().set_font_color(Color::Red).set_bold();
-    let format_high = Format::new().set_font_color(Color::Orange).set_bold();
-    let format_medium = Format::new().set_font_color(Color::Yellow).set_bold();
-    let format_header = Format::new().set_bold().set_background_color(Color::Gray);
+    let format_critical = Format::new().set_font_color(XlsxColor::Red).set_bold();
+    let format_high = Format::new().set_font_color(XlsxColor::Orange).set_bold();
+    let format_medium = Format::new().set_font_color(XlsxColor::Yellow).set_bold();
+    let format_header = Format::new().set_bold().set_background_color(XlsxColor::Gray);
 
     sheet.write_with_format(0, 0, "STT", &format_header)?;
     sheet.write_with_format(0, 1, "Hang Muc Kiem Tra", &format_header)?;
@@ -52,13 +52,8 @@ fn main() -> Result<(), Box<dyn Error>> {
     // 3. Quét các cổng & Nhận diện phiên bản (Port Scan & Banner Grabbing)
     println!("\n[*] Dang quet cac cong & phien ban tren: {}...", domain_only.blue());
     let ports = vec![21, 22, 23, 80, 443, 3306, 8080];
-    // === THÊM MỚI: TÁCH RIÊNG PORT 80 VÀ 443 ===
-    let mut http_port_80_open = false;
-    let mut http_port_80_server = String::from("Unknown");
-    let mut https_port_443_open = false;
-    let mut https_port_443_server = String::from("Unknown");
-
-        for port in ports {
+    
+    for port in ports {
         // BỎ QUA PORT 80 VÀ 443 TRONG VÒNG LẶP CHÍNH (sẽ xử lý riêng)
         if port == 80 || port == 443 {
             continue;
@@ -137,8 +132,6 @@ fn main() -> Result<(), Box<dyn Error>> {
             println!("    Port 80: {} - Server: {}", "OPEN".green().bold(), server_ver.cyan());
             sheet.write(row, 2, format!("HTTP OK (Server: {})", server_ver))?;
             sheet.write_with_format(row, 3, "TRUNG BINH", &format_medium)?;
-            http_port_80_open = true;
-            http_port_80_server = server_ver.to_string();
         }
         Err(e) => {
             println!("    Port 80: {}", "Closed or No Response".red());
@@ -169,8 +162,6 @@ fn main() -> Result<(), Box<dyn Error>> {
             println!("    Port 443: {} - Server: {}", "OPEN".green().bold(), server_ver.cyan());
             sheet.write(row, 2, format!("HTTPS OK (Server: {})", server_ver))?;
             sheet.write_with_format(row, 3, "CAO", &format_high)?;
-            https_port_443_open = true;
-            https_port_443_server = server_ver.to_string();
         }
         Err(e) => {
             println!("    Port 443: {}", "Closed or SSL Error".red());
